@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import {
   StyleSheet,
   View,
@@ -8,12 +8,19 @@ import {
   TextInput,
   Dimensions,
   SafeAreaView,
+  Pressable,
 } from 'react-native';
+import { AuthContext } from '../context/AuthContext';
 
 const { width } = Dimensions.get('window');
 
 export default function HomeScreen() {
   const [mensaje, setMensaje] = useState('');
+
+  const { user } = useContext(AuthContext);
+
+  const [perfilHover, setPerfilHover] = useState(false);
+  const [mostrarMenuPerfil, setMostrarMenuPerfil] = useState(false);
 
   return (
     <SafeAreaView style={styles.safe}>

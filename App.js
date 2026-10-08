@@ -1,4 +1,5 @@
 import React, { useContext } from 'react';
+
 import {
   StyleSheet,
   Text,
@@ -9,11 +10,22 @@ import {
 
 import { StatusBar } from 'expo-status-bar';
 
-import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import {
+  NavigationContainer,
+} from '@react-navigation/native';
 
-import { AuthProvider, AuthContext } from './context/AuthContext';
+import {
+  createNativeStackNavigator,
+} from '@react-navigation/native-stack';
+
+import {
+  createBottomTabNavigator,
+} from '@react-navigation/bottom-tabs';
+
+import {
+  AuthProvider,
+  AuthContext,
+} from './context/AuthContext';
 
 // Pantallas de autenticación
 import LoginScreen from './screens/LoginScreen';
@@ -27,34 +39,10 @@ import MonitorScreen from './screens/MonitorScreen';
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-/* =========================================================
-   NAVEGACIÓN DE AUTENTICACIÓN
-========================================================= */
 
-function AuthStack() {
-  return (
-    <Stack.Navigator
-      initialRouteName="Login"
-      screenOptions={{
-        headerShown: false,
-      }}
-    >
-      <Stack.Screen
-        name="Login"
-        component={LoginScreen}
-      />
-
-      <Stack.Screen
-        name="Register"
-        component={RegisterScreen}
-      />
-    </Stack.Navigator>
-  );
-}
-
-/* =========================================================
-   NAVEGACIÓN PRINCIPAL
-========================================================= */
+// =====================================================
+// TABS PRINCIPALES
+// =====================================================
 
 function MainTabs() {
   return (
@@ -73,13 +61,18 @@ function MainTabs() {
         tabBarItemStyle: styles.tabItem,
 
         tabBarIcon: ({ focused, color }) => {
+
           let icon = '⌂';
 
           if (route.name === 'Inicio') {
             icon = '⌂';
-          } else if (route.name === 'Chat IA') {
+          }
+
+          else if (route.name === 'Chat IA') {
             icon = '💬';
-          } else if (route.name === 'Monitor IA') {
+          }
+
+          else if (route.name === 'Monitor IA') {
             icon = '⚡';
           }
 
@@ -103,6 +96,7 @@ function MainTabs() {
         },
       })}
     >
+
       <Tab.Screen
         name="Inicio"
         component={HomeScreen}
@@ -126,21 +120,30 @@ function MainTabs() {
           tabBarLabel: 'Monitor IA',
         }}
       />
+
     </Tab.Navigator>
   );
 }
 
-/* =========================================================
-   CONTROL DE AUTENTICACIÓN
-========================================================= */
+
+// =====================================================
+// NAVEGADOR PRINCIPAL
+// =====================================================
 
 function AppNavigator() {
-  const { user, loading } = useContext(AuthContext);
 
-  // Mientras Firebase comprueba si existe una sesión
+  const {
+    loading,
+  } = useContext(AuthContext);
+
+
+  // Mientras Firebase comprueba si existe
+  // una sesión activa
   if (loading) {
+
     return (
       <View style={styles.loadingContainer}>
+
         <ActivityIndicator
           size="large"
           color="#b75cff"
@@ -149,32 +152,74 @@ function AppNavigator() {
         <Text style={styles.loadingText}>
           Iniciando NEXUS...
         </Text>
+
       </View>
     );
   }
 
+
   return (
+
     <NavigationContainer>
-      {user ? <MainTabs /> : <AuthStack />}
+
+      <Stack.Navigator
+        initialRouteName="Main"
+        screenOptions={{
+          headerShown: false,
+        }}
+      >
+
+        {/* HOME - SIEMPRE DISPONIBLE */}
+        <Stack.Screen
+          name="Main"
+          component={MainTabs}
+        />
+
+        {/* LOGIN */}
+        <Stack.Screen
+          name="Login"
+          component={LoginScreen}
+        />
+
+        {/* REGISTRO */}
+        <Stack.Screen
+          name="Register"
+          component={RegisterScreen}
+        />
+
+      </Stack.Navigator>
+
     </NavigationContainer>
   );
 }
 
- //  APP PRINCIPAL
 
+// =====================================================
+// APP
+// =====================================================
 
 export default function App() {
+
   return (
+
     <AuthProvider>
+
       <StatusBar style="light" />
+
       <AppNavigator />
+
     </AuthProvider>
+
   );
 }
 
-//Estilos
+
+// =====================================================
+// ESTILOS
+// =====================================================
 
 const styles = StyleSheet.create({
+
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -190,12 +235,20 @@ const styles = StyleSheet.create({
 
   tabBar: {
     backgroundColor: '#0b0715',
+
     borderTopColor: '#3c1854',
+
     borderTopWidth: 1,
 
-    height: Platform.OS === 'ios' ? 88 : 65,
+    height:
+      Platform.OS === 'ios'
+        ? 88
+        : 65,
 
-    paddingBottom: Platform.OS === 'ios' ? 24 : 8,
+    paddingBottom:
+      Platform.OS === 'ios'
+        ? 24
+        : 8,
 
     paddingTop: 8,
 
@@ -219,26 +272,33 @@ const styles = StyleSheet.create({
 
   tabLabel: {
     fontSize: 11,
+
     fontWeight: '600',
+
     letterSpacing: 0.5,
+
     marginTop: 2,
   },
 
   iconWrapper: {
     alignItems: 'center',
+
     justifyContent: 'center',
 
     width: 32,
+
     height: 32,
 
     borderRadius: 16,
   },
 
   iconWrapperActive: {
-    backgroundColor: 'rgba(183, 92, 255, 0.15)',
+    backgroundColor:
+      'rgba(183, 92, 255, 0.15)',
   },
 
   tabIcon: {
     fontSize: 18,
   },
+
 });
