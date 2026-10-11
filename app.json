@@ -6,24 +6,80 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.nexus.app",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Permite que NEXUS use el microfono para escuchar tus ordenes.",
+        "NSSpeechRecognitionUsageDescription": "Permite que NEXUS use el reconocimiento de voz para entender tus recordatorios y alarmas.",
+        "UIBackgroundModes": [
+          "audio"
+        ]
+      }
     },
     "android": {
+      "package": "com.nexus.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#05030b"
       },
-      "edgeToEdgeEnabled": true
+      "permissions": [
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.VIBRATE",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "color": "#b75cff",
+          "defaultChannel": "nexus-recordatorios",
+          "sounds": [
+            "./assets/alarm_beep.wav"
+          ]
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Permite que NEXUS use el microfono para escuchar tus ordenes."
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Permite que NEXUS use el microfono para escuchar tus ordenes.",
+          "speechRecognitionPermission": "Permite que NEXUS use el reconocimiento de voz para entender tus recordatorios y alarmas.",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox"
+          ]
+        }
+      ],
+      "@react-native-community/datetimepicker",
+      "expo-asset",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#05030b"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "05213042-8fc1-48a8-b421-c898bd2adfc8"
+      }
     }
   }
 }

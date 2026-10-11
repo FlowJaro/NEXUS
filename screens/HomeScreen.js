@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import {
   StyleSheet,
   View,
@@ -8,19 +8,69 @@ import {
   TextInput,
   Dimensions,
   SafeAreaView,
-  Pressable,
+  TouchableOpacity,
+  Modal,
 } from 'react-native';
+
+import { doc, onSnapshot } from 'firebase/firestore';
+
+import { auth, db } from '../firebaseConfig';
 import { AuthContext } from '../context/AuthContext';
+import { RemindersContext } from '../context/RemindersContext';
+import { formatearHora, describirFecha } from '../services/assistant';
 
 const { width } = Dimensions.get('window');
 
-export default function HomeScreen() {
+export default function HomeScreen({ navigation }) {
   const [mensaje, setMensaje] = useState('');
+  const [perfil, setPerfil] = useState(null);
+  const [perfilVisible, setPerfilVisible] = useState(false);
 
-  const { user } = useContext(AuthContext);
+  const { user, logout } = useContext(AuthContext);
+  const { proximos, recordatorios } = useContext(RemindersContext);
 
-  const [perfilHover, setPerfilHover] = useState(false);
-  const [mostrarMenuPerfil, setMostrarMenuPerfil] = useState(false);
+  useEffect(() => {
+    const uid = user?.uid || auth.currentUser?.uid;
+    if (!uid) return undefined;
+
+    const unsubscribe = onSnapshot(
+      doc(db, 'usuarios', uid),
+      (snap) => setPerfil(snap.exists() ? snap.data() : null),
+      () => setPerfil(null)
+    );
+
+    return unsubscribe;
+  }, [user]);
+
+  const abrirChat = () => navigation.navigate('Chat IA');
+
+  const nombre =
+    perfil?.nombrePreferido ||
+    user?.displayName ||
+    user?.email?.split('@')[0] ||
+    'Usuario';
+  const inicial = nombre.charAt(0).toUpperCase();
+  const correo = user?.email || perfil?.email || 'Sin correo';
+  const uid = user?.uid || auth.currentUser?.uid || '';
+  const miembroDesde = user?.metadata?.creationTime
+    ? new Date(user.metadata.creationTime).toLocaleDateString('es-ES', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+      })
+    : null;
+  const completados = recordatorios.filter((r) => r.completado);
+
+  const etiquetaDia = (fecha) => {
+    if (!fecha) return '';
+    const hoy = new Date();
+    const a = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+    const f = new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate());
+    const diff = Math.round((f.getTime() - a.getTime()) / 86400000);
+    if (diff === 0) return 'Hoy';
+    if (diff === 1) return 'Manana';
+    return fecha.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+  };
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -28,8 +78,6 @@ export default function HomeScreen() {
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-
-        {/* ENCABEZADO */}
         <View style={styles.header}>
           <Text style={styles.menu}>☰</Text>
 
@@ -40,105 +88,103 @@ export default function HomeScreen() {
             </Text>
           </View>
 
-          <Image
-            source={require('../assets/profile_icon.png')}
-            style={styles.profileIcon}
-          />
+          <TouchableOpacity
+            style={styles.profileButton}
+            onPress={() => setPerfilVisible(true)}
+            activeOpacity={0.8}
+          >
+            <Image
+              source={require('../assets/profile_icon.png')}
+              style={styles.profileIcon}
+            />
+          </TouchableOpacity>
         </View>
 
-        {/* PRESENTACIÓN */}
         <View style={styles.heroCard}>
           <Image
             source={require('../assets/nexus_logo.png')}
             style={styles.nexusLogo}
           />
 
-          <Text style={styles.greeting}>Hola, Usuario</Text>
+          <Text style={styles.greeting}>Hola, {nombre}</Text>
 
-          <Text style={styles.question}>
-            ¿Qué quieres que hagamos hoy?
-          </Text>
+          <Text style={styles.question}>¿Qué quieres que hagamos hoy?</Text>
 
-          <TextInput
-            style={styles.input}
-            placeholder="Escribe o habla..."
-            placeholderTextColor="#8f879d"
-          />
+          <TouchableOpacity style={styles.inputLike} onPress={abrirChat}>
+            <Text style={styles.inputLikeTexto}>Escribe o habla con NEXUS...</Text>
+            <Text style={styles.inputLikeMic}>🎤</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* PRÓXIMOS EVENTOS */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>PRÓXIMOS EVENTOS</Text>
 
-          <View style={styles.eventList}>
-            <View style={styles.eventRow}>
-              <Text style={styles.eventIcon}>▣</Text>
-              <View style={styles.eventInfo}>
-                <Text style={styles.eventTime}>09:00 AM</Text>
-                <Text style={styles.eventName}>Reunión de proyecto</Text>
-              </View>
-              <Text style={styles.today}>Hoy</Text>
+          {proximos.length === 0 ? (
+            <Text style={styles.vacio}>
+              No tienes eventos proximos. Pideselos a NEXUS por voz o crealos
+              manualmente.
+            </Text>
+          ) : (
+            <View style={styles.eventList}>
+              {proximos.slice(0, 4).map((evento) => (
+                <View key={evento.id} style={styles.eventRow}>
+                  <Text style={styles.eventIcon}>
+                    {evento.tipo === 'alarma' ? '⏰' : '▣'}
+                  </Text>
+                  <View style={styles.eventInfo}>
+                    <Text style={styles.eventTime}>{formatearHora(evento.fecha)}</Text>
+                    <Text style={styles.eventName}>{evento.titulo}</Text>
+                  </View>
+                  <Text style={styles.today}>{etiquetaDia(evento.fecha)}</Text>
+                </View>
+              ))}
             </View>
-
-            <View style={styles.eventRow}>
-              <Text style={styles.eventIcon}>▣</Text>
-              <View style={styles.eventInfo}>
-                <Text style={styles.eventTime}>01:00 PM</Text>
-                <Text style={styles.eventName}>Almuerzo con Laura</Text>
-              </View>
-              <Text style={styles.today}>Hoy</Text>
-            </View>
-
-            <View style={styles.eventRow}>
-              <Text style={styles.eventIcon}>▣</Text>
-              <View style={styles.eventInfo}>
-                <Text style={styles.eventTime}>03:00 PM</Text>
-                <Text style={styles.eventName}>Entrega de informe</Text>
-              </View>
-              <Text style={styles.today}>Hoy</Text>
-            </View>
-          </View>
+          )}
         </View>
 
-        {/* TAREAS PENDIENTES */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>TAREAS PENDIENTES</Text>
+          <Text style={styles.sectionTitle}>TAREAS COMPLETADAS</Text>
 
           <View style={styles.taskList}>
-            <Text style={styles.task}>○   Enviar informe del proyecto</Text>
-            <Text style={styles.task}>○   Comprar regalo para Laura</Text>
-            <Text style={styles.task}>○   Reservar mesa para cena</Text>
+            {completados.length === 0 ? (
+              <Text style={styles.vacio}>Aun no has completado recordatorios.</Text>
+            ) : (
+              completados.slice(0, 4).map((tarea) => (
+                <Text key={tarea.id} style={styles.task}>
+                  ✅   {tarea.titulo}
+                </Text>
+              ))
+            )}
           </View>
         </View>
 
-        {/* ACCESOS RÁPIDOS */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>ACCESOS RÁPIDOS</Text>
 
           <View style={styles.quickRow}>
-            <View style={styles.quickItem}>
-              <Text style={styles.quickIcon}>▢</Text>
+            <TouchableOpacity style={styles.quickItem} onPress={abrirChat}>
+              <Text style={styles.quickIcon}>💬</Text>
               <Text style={styles.quickText}>Chat</Text>
-            </View>
+            </TouchableOpacity>
 
-            <View style={styles.quickItem}>
+            <TouchableOpacity
+              style={styles.quickItem}
+              onPress={() => navigation.navigate('Recordatorios')}
+            >
               <Text style={styles.quickIcon}>✓</Text>
-              <Text style={styles.quickText}>Tareas</Text>
-            </View>
+              <Text style={styles.quickText}>Recordatorios</Text>
+            </TouchableOpacity>
 
-            <View style={styles.quickItem}>
-              <Text style={styles.quickIcon}>□</Text>
-              <Text style={styles.quickText}>Calendario</Text>
-            </View>
-
-            <View style={styles.quickItem}>
-              <Text style={styles.quickIcon}>▱</Text>
-              <Text style={styles.quickText}>Archivos</Text>
-            </View>
+            <TouchableOpacity
+              style={styles.quickItem}
+              onPress={() => navigation.navigate('Monitor IA')}
+            >
+              <Text style={styles.quickIcon}>⚡</Text>
+              <Text style={styles.quickText}>Monitor</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
-        {/* CAMPO INFERIOR */}
         <View style={styles.bottomInputBox}>
           <TextInput
             style={styles.bottomInput}
@@ -146,11 +192,75 @@ export default function HomeScreen() {
             placeholderTextColor="#8f879d"
             value={mensaje}
             onChangeText={setMensaje}
+            onSubmitEditing={abrirChat}
           />
-          <Text style={styles.microphone}>◉</Text>
+          <TouchableOpacity onPress={abrirChat}>
+            <Text style={styles.microphone}>🎤</Text>
+          </TouchableOpacity>
         </View>
-
       </ScrollView>
+
+      <Modal
+        visible={perfilVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPerfilVisible(false)}
+      >
+        <View style={styles.modalFondo}>
+          <View style={styles.perfilCard}>
+            <TouchableOpacity
+              style={styles.modalCerrar}
+              onPress={() => setPerfilVisible(false)}
+            >
+              <Text style={styles.modalCerrarTexto}>✕</Text>
+            </TouchableOpacity>
+
+            <View style={styles.perfilAvatar}>
+              <Text style={styles.perfilAvatarTexto}>{inicial}</Text>
+            </View>
+
+            <Text style={styles.perfilNombre}>{nombre}</Text>
+            <Text style={styles.perfilCorreo}>{correo}</Text>
+
+            <View style={styles.perfilDatos}>
+              <View style={styles.perfilFila}>
+                <Text style={styles.perfilEtiqueta}>Recordatorios</Text>
+                <Text style={styles.perfilValor}>{recordatorios.length}</Text>
+              </View>
+              <View style={styles.perfilFila}>
+                <Text style={styles.perfilEtiqueta}>Completados</Text>
+                <Text style={styles.perfilValor}>{completados.length}</Text>
+              </View>
+              <View style={styles.perfilFila}>
+                <Text style={styles.perfilEtiqueta}>Pendientes</Text>
+                <Text style={styles.perfilValor}>{proximos.length}</Text>
+              </View>
+              {miembroDesde ? (
+                <View style={styles.perfilFila}>
+                  <Text style={styles.perfilEtiqueta}>Miembro desde</Text>
+                  <Text style={styles.perfilValor}>{miembroDesde}</Text>
+                </View>
+              ) : null}
+              <View style={styles.perfilFila}>
+                <Text style={styles.perfilEtiqueta}>ID</Text>
+                <Text style={styles.perfilValor} numberOfLines={1}>
+                  {uid ? `${uid.slice(0, 10)}...` : '—'}
+                </Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={styles.perfilSalir}
+              onPress={() => {
+                setPerfilVisible(false);
+                logout();
+              }}
+            >
+              <Text style={styles.perfilSalirTexto}>Cerrar sesion</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -199,10 +309,122 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
 
+  profileButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+  },
+
   profileIcon: {
     width: 46,
     height: 46,
     borderRadius: 23,
+  },
+
+  modalFondo: {
+    flex: 1,
+    backgroundColor: 'rgba(3, 1, 8, 0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+
+  perfilCard: {
+    width: '100%',
+    backgroundColor: '#0b0715',
+    borderWidth: 1,
+    borderColor: '#5b267c',
+    borderRadius: 18,
+    padding: 22,
+    alignItems: 'center',
+  },
+
+  modalCerrar: {
+    alignSelf: 'flex-end',
+    padding: 4,
+  },
+
+  modalCerrarTexto: {
+    color: '#c9b6d8',
+    fontSize: 16,
+  },
+
+  perfilAvatar: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: '#b75cff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -6,
+  },
+
+  perfilAvatarTexto: {
+    color: '#ffffff',
+    fontSize: 36,
+    fontWeight: 'bold',
+  },
+
+  perfilNombre: {
+    color: '#f5f0f7',
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginTop: 14,
+  },
+
+  perfilCorreo: {
+    color: '#b9a9c7',
+    fontSize: 14,
+    marginTop: 4,
+  },
+
+  perfilDatos: {
+    width: '100%',
+    borderWidth: 1,
+    borderColor: '#241536',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    marginTop: 18,
+  },
+
+  perfilFila: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 11,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1b1029',
+  },
+
+  perfilEtiqueta: {
+    color: '#a191b0',
+    fontSize: 13,
+  },
+
+  perfilValor: {
+    color: '#e7e0ea',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 12,
+    flexShrink: 1,
+  },
+
+  perfilSalir: {
+    width: '100%',
+    backgroundColor: '#3a1150',
+    borderWidth: 1,
+    borderColor: '#8d3ec2',
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: 'center',
+    marginTop: 18,
+  },
+
+  perfilSalirTexto: {
+    color: '#f0d9ff',
+    fontSize: 14,
+    fontWeight: 'bold',
+    letterSpacing: 1,
   },
 
   heroCard: {
@@ -237,15 +459,26 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
 
-  input: {
+  inputLike: {
     width: '95%',
-    height: 55,
+    minHeight: 55,
     borderWidth: 1,
     borderColor: '#6c328e',
     borderRadius: 12,
     paddingHorizontal: 16,
-    color: '#fff',
     backgroundColor: '#090612',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  inputLikeTexto: {
+    color: '#8f879d',
+    fontSize: 15,
+  },
+
+  inputLikeMic: {
+    fontSize: 20,
   },
 
   section: {
@@ -282,7 +515,7 @@ const styles = StyleSheet.create({
   },
 
   eventIcon: {
-    fontSize: 25,
+    fontSize: 22,
     color: '#7cff8b',
     width: 45,
     textAlign: 'center',
@@ -319,6 +552,12 @@ const styles = StyleSheet.create({
     color: '#e7e0ea',
     fontSize: 15,
     paddingVertical: 8,
+  },
+
+  vacio: {
+    color: '#8f879d',
+    fontSize: 13,
+    lineHeight: 19,
   },
 
   quickRow: {
@@ -367,7 +606,7 @@ const styles = StyleSheet.create({
 
   microphone: {
     color: '#d16cff',
-    fontSize: 25,
+    fontSize: 22,
     paddingHorizontal: 8,
   },
 });

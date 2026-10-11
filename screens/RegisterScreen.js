@@ -60,11 +60,7 @@ export default function RegisterScreen({ navigation }) {
 
       console.log('Usuario registrado correctamente:', user.uid);
 
-      // 3. Volver al inicio de NEXUS
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Main' }],
-      });
+      // El AuthContext detecta la sesion y App.js cambia solo al area principal.
 
     } catch (err) {
       console.log('Error al registrar:', err);

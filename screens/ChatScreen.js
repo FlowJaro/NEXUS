@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useContext } from 'react';
 import {
   StyleSheet,
   View,
@@ -10,76 +10,183 @@ import {
   Dimensions,
   KeyboardAvoidingView,
   Platform,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
+
+import { RemindersContext } from '../context/RemindersContext';
+import { AuthContext } from '../context/AuthContext';
+import { procesarOrden, describirFecha } from '../services/assistant';
+import {
+  escucharUnaOrden,
+  detenerVoz,
+  hablar,
+  vozDisponible,
+} from '../services/voice';
 
 const { width } = Dimensions.get('window');
 
-export default function ChatScreen() {
-  // ESTADO 1 (Diapositiva 6 y 7): Input controlado para el prompt del usuario
-  const [prompt, setPrompt] = useState('');
+function horaActual() {
+  return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
 
-  // Estado reactivo para la conversación con NEXUS AI
+export default function ChatScreen() {
+  const { user } = useContext(AuthContext);
+  const {
+    proximos,
+    agregarRecordatorio,
+    eliminarRecordatorio,
+    eliminarTodas,
+  } = useContext(RemindersContext);
+
+  const [prompt, setPrompt] = useState('');
+  const [pensando, setPensando] = useState(false);
+  const [reconociendo, setReconociendo] = useState(false);
+  const [vozActivada, setVozActivada] = useState(true);
+
+  const sesionVoz = useRef(null);
+
   const [mensajes, setMensajes] = useState([
     {
       id: '1',
       emisor: 'nexus',
-      texto: 'Hola, soy NEXUS. He sincronizado tu agenda y tareas. ¿Qué consulta o acción deseas ejecutar?',
-      hora: '10:00 AM',
+      texto:
+        'Hola, soy NEXUS. Puedo crear recordatorios y alarmas por ti. Escribe o pulsa el microfono y dime por ejemplo: "recuerdame llamar a mama manana a las 3 de la tarde".',
+      hora: horaActual(),
     },
   ]);
 
-  // Estado para indicar cuando la IA está procesando (re-render de estado de carga)
-  const [pensando, setPensando] = useState(false);
+  const agregarMensaje = (emisor, texto) => {
+    setMensajes((prev) => [
+      ...prev,
+      { id: `${Date.now()}-${prev.length}`, emisor, texto, hora: horaActual() },
+    ]);
+  };
 
-  // Manejador del evento de envío con validación (Diapositiva 7: if (name.trim() === '') return;)
-  const handleEnviar = () => {
-    if (prompt.trim() === '') return;
+  const responderNexus = (texto) => {
+    agregarMensaje('nexus', texto);
+    if (vozActivada) hablar(texto);
+  };
 
-    const nuevoMensajeUsuario = {
-      id: Date.now().toString(),
-      emisor: 'usuario',
-      texto: prompt.trim(),
-      hora: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    };
+  const enviarOrden = async (textoEntrada) => {
+    const consulta = (textoEntrada ?? prompt).trim();
+    if (!consulta || pensando) return;
 
-    // Actualiza el estado con el mensaje del usuario y limpia el input
-    setMensajes((prev) => [...prev, nuevoMensajeUsuario]);
-    const consulta = prompt.trim();
+    agregarMensaje('usuario', consulta);
     setPrompt('');
     setPensando(true);
 
-    // Simula procesamiento y respuesta inteligente de NEXUS tras 900ms
-    setTimeout(() => {
-      let respuestaIA = 'He procesado tu solicitud: ';
+    const orden = procesarOrden(consulta);
+    let respuesta = '';
 
-      if (consulta.toLowerCase().includes('reunion') || consulta.toLowerCase().includes('evento')) {
-        respuestaIA = 'Tienes programada tu próxima reunión a las 09:00 AM: "Reunión de proyecto". ¿Deseas que prepare un resumen?';
-      } else if (consulta.toLowerCase().includes('tarea') || consulta.toLowerCase().includes('informe')) {
-        respuestaIA = 'Tu tarea prioritaria es "Enviar informe del proyecto". Está agendada para antes de las 03:00 PM.';
-      } else if (consulta.toLowerCase().includes('hola') || consulta.toLowerCase().includes('nexus')) {
-        respuestaIA = '¡Hola! Tus sistemas neuronales están operando al 100%. ¿En qué más puedo asistirte?';
+    try {
+      if (orden.intent === 'saludo') {
+        respuesta =
+          'Hola. Dime que quieres recordar o que alarma programar. Por ejemplo: "pon una alarma a las 7 de la manana".';
+      } else if (orden.intent === 'ayuda') {
+        respuesta =
+          'Puedo crear recordatorios y alarmas, listarlos y eliminarlos. Prueba: "recuerdame tomar agua en 20 minutos" o "mis recordatorios".';
+      } else if (orden.intent === 'hora') {
+        respuesta = `Son las ${orden.horaActual}.`;
+      } else if (orden.intent === 'listar') {
+        if (proximos.length === 0) {
+          respuesta = 'No tienes recordatorios ni alarmas pendientes.';
+        } else {
+          respuesta =
+            'Tus proximos compromisos:\n' +
+            proximos
+              .slice(0, 6)
+              .map((r) => `• ${r.titulo} — ${describirFecha(r.fecha)}`)
+              .join('\n');
+        }
+      } else if (orden.intent === 'eliminar') {
+        if (orden.todas) {
+          await eliminarTodas();
+          respuesta = 'Listo, elimine todos tus recordatorios y alarmas.';
+        } else {
+          const objetivo =
+            proximos.find((r) => (orden.tipo ? r.tipo === orden.tipo : true)) ||
+            proximos[0];
+          if (!objetivo) {
+            respuesta = 'No encontre recordatorios para eliminar.';
+          } else {
+            await eliminarRecordatorio(objetivo);
+            respuesta = `Elimine "${objetivo.titulo}".`;
+          }
+        }
+      } else if (orden.intent === 'crear') {
+        if (orden.error || !orden.fecha) {
+          respuesta = orden.error || 'No pude entender la fecha y la hora.';
+        } else {
+          await agregarRecordatorio({
+            titulo: orden.titulo,
+            fecha: orden.fecha,
+            tipo: orden.tipo,
+          });
+          const etiqueta = orden.tipo === 'alarma' ? 'alarma' : 'recordatorio';
+          respuesta = `Listo. Programe tu ${etiqueta} "${orden.titulo}" ${describirFecha(
+            orden.fecha
+          )}.`;
+        }
       } else {
-        respuestaIA = `Entendido. Registré en memoria: "${consulta}". Coordinando recursos del sistema.`;
+        respuesta =
+          'No estoy seguro de que quieres hacer. Intenta: "recuerdame comprar pan en 30 minutos".';
       }
+    } catch (err) {
+      respuesta = err?.message || 'Ocurrio un error al procesar tu orden.';
+    }
 
-      setMensajes((prev) => [
-        ...prev,
-        {
-          id: (Date.now() + 1).toString(),
-          emisor: 'nexus',
-          texto: respuestaIA,
-          hora: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        },
-      ]);
-      setPensando(false);
-    }, 900);
+    setPensando(false);
+    responderNexus(respuesta);
+  };
+
+  const alternarMicrofono = async () => {
+    if (reconociendo) {
+      sesionVoz.current?.detener?.();
+      setReconociendo(false);
+      return;
+    }
+
+    if (!vozDisponible()) {
+      Alert.alert(
+        'Voz no disponible',
+        'El reconocimiento de voz necesita un development build y no funciona en Expo Go. Puedes escribir tu orden.'
+      );
+      return;
+    }
+
+    setReconociendo(true);
+    const sesion = await escucharUnaOrden({
+      onResultado: (texto) => setPrompt(texto),
+      onFinal: (texto) => {
+        setReconociendo(false);
+        sesionVoz.current = null;
+        enviarOrden(texto);
+      },
+      onError: (codigo) => {
+        setReconociendo(false);
+        sesionVoz.current = null;
+        if (codigo === 'PERMISO_DENEGADO') {
+          Alert.alert('Permiso denegado', 'Necesito acceso al microfono.');
+        } else if (codigo === 'VOZ_NO_DISPONIBLE') {
+          Alert.alert('Voz no disponible', 'Necesitas un development build.');
+        } else {
+          Alert.alert('No te escuche', 'Intenta de nuevo o escribe tu orden.');
+        }
+      },
+    });
+
+    sesionVoz.current = sesion;
+    if (!sesion) setReconociendo(false);
   };
 
   const sugerencias = [
-    '¿Cuál es mi próxima reunión?',
-    'Resumen de tareas pendientes',
-    'Estado del sistema NEXUS',
+    'Recuerdame llamar a mama manana a las 3 de la tarde',
+    'Pon una alarma a las 7 de la manana',
+    'Mis recordatorios',
   ];
+
+  const nombre = user?.nombrePreferido || user?.email?.split('@')[0] || 'Usuario';
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -87,23 +194,26 @@ export default function ChatScreen() {
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        {/* ENCABEZADO DE LA CONSOLA */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>CONSOLA DE CHAT IA</Text>
+          <View style={styles.headerRow}>
+            <Text style={styles.headerTitle}>CONSOLA DE CHAT IA</Text>
+            <TouchableOpacity
+              style={styles.vozToggle}
+              onPress={() => {
+                if (vozActivada) detenerVoz();
+                setVozActivada((v) => !v);
+              }}
+            >
+              <Text style={styles.vozToggleTexto}>
+                {vozActivada ? '🔊 Voz' : '🔇 Voz'}
+              </Text>
+            </TouchableOpacity>
+          </View>
           <Text style={styles.headerSubtitle}>
-            COMUNICACIÓN DIRECTA CON NEXUS
+            COMUNICACION DIRECTA CON NEXUS
           </Text>
         </View>
 
-        {/* TARJETA PEDAGÓGICA (Conceptos de la diapositiva) */}
-        <View style={styles.badgeConcepto}>
-          <Text style={styles.badgeTitle}>⚡ Estado 1 · Formularios Controlados y Eventos</Text>
-          <Text style={styles.badgeText}>
-            Usa `useState` para el input y la lista de mensajes, validación con `.trim()` y eventos `onChangeText` / `onPress`.
-          </Text>
-        </View>
-
-        {/* LISTA DE MENSAJES REACTIVOS */}
         <ScrollView
           style={styles.chatList}
           contentContainerStyle={styles.chatContent}
@@ -124,7 +234,7 @@ export default function ChatScreen() {
                     m.emisor === 'usuario' ? styles.tagUsuario : styles.tagNexus,
                   ]}
                 >
-                  {m.emisor === 'usuario' ? 'TÚ' : 'NEXUS IA'}
+                  {m.emisor === 'usuario' ? 'TU' : 'NEXUS IA'}
                 </Text>
                 <Text style={styles.hora}>{m.hora}</Text>
               </View>
@@ -135,19 +245,18 @@ export default function ChatScreen() {
           {pensando && (
             <View style={[styles.burbuja, styles.burbujaNexus]}>
               <Text style={styles.tagNexus}>NEXUS IA</Text>
-              <Text style={styles.textoPensando}>Procesando respuesta...</Text>
+              <Text style={styles.textoPensando}>Procesando orden...</Text>
             </View>
           )}
         </ScrollView>
 
-        {/* SUGERENCIAS RÁPIDAS */}
         <View style={styles.sugerenciasContainer}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {sugerencias.map((sug, index) => (
               <TouchableOpacity
                 key={index}
                 style={styles.chip}
-                onPress={() => setPrompt(sug)}
+                onPress={() => enviarOrden(sug)}
               >
                 <Text style={styles.chipText}>{sug}</Text>
               </TouchableOpacity>
@@ -155,23 +264,36 @@ export default function ChatScreen() {
           </ScrollView>
         </View>
 
-        {/* CAMPO DE ENTRADA CONTROLADO (Diapositivas 6 y 7) */}
         <View style={styles.inputContainer}>
           <TextInput
             style={styles.input}
-            placeholder="Escribe una orden para NEXUS..."
+            placeholder={
+              reconociendo ? 'Escuchando...' : `Escribe una orden para NEXUS, ${nombre}`
+            }
             placeholderTextColor="#8f879d"
             value={prompt}
             onChangeText={setPrompt}
-            onSubmitEditing={handleEnviar}
+            onSubmitEditing={() => enviarOrden()}
             returnKeyType="send"
           />
+
+          <TouchableOpacity
+            style={[styles.micButton, reconociendo && styles.micButtonActivo]}
+            onPress={alternarMicrofono}
+          >
+            {reconociendo ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={styles.micButtonTexto}>🎤</Text>
+            )}
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={[
               styles.sendButton,
               prompt.trim() === '' ? styles.sendButtonDisabled : styles.sendButtonActive,
             ]}
-            onPress={handleEnviar}
+            onPress={() => enviarOrden()}
             disabled={prompt.trim() === ''}
           >
             <Text style={styles.sendButtonText}>➤</Text>
@@ -198,38 +320,36 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#241536',
   },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
   headerTitle: {
-    fontSize: 20,
-    letterSpacing: 4,
+    fontSize: 18,
+    letterSpacing: 3,
     color: '#f0d9ff',
     fontWeight: 'bold',
+    flex: 1,
+  },
+  vozToggle: {
+    borderWidth: 1,
+    borderColor: '#4c216b',
+    borderRadius: 12,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    backgroundColor: '#120b22',
+  },
+  vozToggleTexto: {
+    color: '#d0c7d7',
+    fontSize: 12,
   },
   headerSubtitle: {
     fontSize: 10,
     letterSpacing: 1.5,
     color: '#b75cff',
     marginTop: 3,
-  },
-  badgeConcepto: {
-    marginHorizontal: 16,
-    marginTop: 10,
-    marginBottom: 6,
-    backgroundColor: '#120b22',
-    borderWidth: 1,
-    borderColor: '#4c216b',
-    borderRadius: 10,
-    padding: 10,
-  },
-  badgeTitle: {
-    fontSize: 12,
-    color: '#7cff8b',
-    fontWeight: 'bold',
-    marginBottom: 2,
-  },
-  badgeText: {
-    fontSize: 11,
-    color: '#d0c7d7',
-    lineHeight: 15,
   },
   chatList: {
     flex: 1,
@@ -314,7 +434,7 @@ const styles = StyleSheet.create({
     borderColor: '#5b267c',
     borderRadius: 14,
     backgroundColor: '#0b0715',
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
     paddingVertical: 4,
     marginBottom: 12,
   },
@@ -323,6 +443,24 @@ const styles = StyleSheet.create({
     height: 48,
     color: '#fff',
     fontSize: 14,
+    paddingHorizontal: 6,
+  },
+  micButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1b1228',
+    borderWidth: 1,
+    borderColor: '#4c216b',
+  },
+  micButtonActivo: {
+    backgroundColor: '#b75cff',
+    borderColor: '#b75cff',
+  },
+  micButtonTexto: {
+    fontSize: 17,
   },
   sendButton: {
     width: 40,
@@ -330,6 +468,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+    marginLeft: 6,
   },
   sendButtonActive: {
     backgroundColor: '#b75cff',
