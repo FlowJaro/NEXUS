@@ -23,6 +23,13 @@ import {
 } from '@react-navigation/bottom-tabs';
 
 import {
+  SafeAreaProvider,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
+
+import { Ionicons } from '@expo/vector-icons';
+
+import {
   AuthProvider,
   AuthContext,
 } from './context/AuthContext';
@@ -47,25 +54,39 @@ import InAppNotifications from './components/InAppNotifications';
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-const ICONOS = {
-  Inicio: '⌂',
-  'Chat IA': '💬',
-  Recordatorios: '🔔',
-  'Monitor IA': '⚡',
+const TAB_ICONS = {
+  Inicio: { focused: 'home', unfocused: 'home-outline' },
+  'Chat IA': { focused: 'chatbubble-ellipses', unfocused: 'chatbubble-ellipses-outline' },
+  Recordatorios: { focused: 'notifications', unfocused: 'notifications-outline' },
+  'Monitor IA': { focused: 'hardware-chip', unfocused: 'hardware-chip-outline' },
 };
 
 function MainTabs() {
+  const insets = useSafeAreaInsets();
+  const bottomPadding = Math.max(insets.bottom, Platform.OS === 'ios' ? 24 : 12);
+  const tabHeight = 58 + bottomPadding;
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarStyle: styles.tabBar,
+        tabBarStyle: [
+          styles.tabBar,
+          {
+            height: tabHeight,
+            paddingBottom: bottomPadding,
+          },
+        ],
         tabBarActiveTintColor: '#b75cff',
         tabBarInactiveTintColor: '#6f6480',
         tabBarLabelStyle: styles.tabLabel,
         tabBarItemStyle: styles.tabItem,
         tabBarIcon: ({ focused, color }) => {
-          const icon = ICONOS[route.name] || '●';
+          const config = TAB_ICONS[route.name] || {
+            focused: 'ellipse',
+            unfocused: 'ellipse-outline',
+          };
+          const iconName = focused ? config.focused : config.unfocused;
 
           return (
             <View
@@ -74,7 +95,7 @@ function MainTabs() {
                 focused && styles.iconWrapperActive,
               ]}
             >
-              <Text style={[styles.tabIcon, { color }]}>{icon}</Text>
+              <Ionicons name={iconName} size={20} color={color} />
             </View>
           );
         },
@@ -138,16 +159,18 @@ function NotificationSetup() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <RemindersProvider>
-        <View style={styles.root}>
-          <StatusBar style="light" />
-          <NotificationSetup />
-          <AppNavigator />
-          <InAppNotifications />
-        </View>
-      </RemindersProvider>
-    </AuthProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <RemindersProvider>
+          <View style={styles.root}>
+            <StatusBar style="light" />
+            <NotificationSetup />
+            <AppNavigator />
+            <InAppNotifications />
+          </View>
+        </RemindersProvider>
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }
 
@@ -174,8 +197,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#0b0715',
     borderTopColor: '#3c1854',
     borderTopWidth: 1,
-    height: Platform.OS === 'ios' ? 88 : 65,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 8,
     paddingTop: 8,
     elevation: 10,
     shadowColor: '#b75cff',
@@ -198,16 +219,12 @@ const styles = StyleSheet.create({
   iconWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
   },
 
   iconWrapperActive: {
-    backgroundColor: 'rgba(183, 92, 255, 0.15)',
-  },
-
-  tabIcon: {
-    fontSize: 18,
+    backgroundColor: 'rgba(183, 92, 255, 0.18)',
   },
 });

@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 
 import { doc, onSnapshot } from 'firebase/firestore';
+import { Ionicons } from '@expo/vector-icons';
 
 import { auth, db } from '../firebaseConfig';
 import { AuthContext } from '../context/AuthContext';
@@ -27,7 +28,7 @@ export default function HomeScreen({ navigation }) {
   const [perfilVisible, setPerfilVisible] = useState(false);
 
   const { user, logout } = useContext(AuthContext);
-  const { proximos, recordatorios } = useContext(RemindersContext);
+  const { proximos, recordatorios, alternarCompletado } = useContext(RemindersContext);
 
   useEffect(() => {
     const uid = user?.uid || auth.currentUser?.uid;
@@ -79,7 +80,8 @@ export default function HomeScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Text style={styles.menu}>☰</Text>
+          {/* Espaciador izquierdo que equilibra el botón de perfil y mantiene el logo centrado */}
+          <View style={styles.headerSpacer} />
 
           <View style={styles.brand}>
             <Text style={styles.logoText}>NEXUS</Text>
@@ -110,9 +112,9 @@ export default function HomeScreen({ navigation }) {
 
           <Text style={styles.question}>¿Qué quieres que hagamos hoy?</Text>
 
-          <TouchableOpacity style={styles.inputLike} onPress={abrirChat}>
+          <TouchableOpacity style={styles.inputLike} onPress={abrirChat} activeOpacity={0.8}>
             <Text style={styles.inputLikeTexto}>Escribe o habla con NEXUS...</Text>
-            <Text style={styles.inputLikeMic}>🎤</Text>
+            <Ionicons name="mic" size={20} color="#b75cff" />
           </TouchableOpacity>
         </View>
 
@@ -128,14 +130,34 @@ export default function HomeScreen({ navigation }) {
             <View style={styles.eventList}>
               {proximos.slice(0, 4).map((evento) => (
                 <View key={evento.id} style={styles.eventRow}>
-                  <Text style={styles.eventIcon}>
-                    {evento.tipo === 'alarma' ? '⏰' : '▣'}
-                  </Text>
+                  {/* Botón interactivo para marcar la tarea como completada */}
+                  <TouchableOpacity
+                    style={styles.completeBtn}
+                    onPress={() => alternarCompletado(evento)}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons
+                      name="checkmark-circle-outline"
+                      size={26}
+                      color="#b75cff"
+                    />
+                  </TouchableOpacity>
+
                   <View style={styles.eventInfo}>
                     <Text style={styles.eventTime}>{formatearHora(evento.fecha)}</Text>
                     <Text style={styles.eventName}>{evento.titulo}</Text>
                   </View>
-                  <Text style={styles.today}>{etiquetaDia(evento.fecha)}</Text>
+
+                  <View style={styles.eventMeta}>
+                    <Text style={styles.today}>{etiquetaDia(evento.fecha)}</Text>
+                    <Ionicons
+                      name={evento.tipo === 'alarma' ? 'alarm-outline' : 'notifications-outline'}
+                      size={15}
+                      color="#8f879d"
+                      style={styles.eventMetaIcon}
+                    />
+                  </View>
                 </View>
               ))}
             </View>
@@ -150,9 +172,17 @@ export default function HomeScreen({ navigation }) {
               <Text style={styles.vacio}>Aun no has completado recordatorios.</Text>
             ) : (
               completados.slice(0, 4).map((tarea) => (
-                <Text key={tarea.id} style={styles.task}>
-                  ✅   {tarea.titulo}
-                </Text>
+                <View key={tarea.id} style={styles.completedTaskRow}>
+                  <TouchableOpacity
+                    style={styles.completedCheckBtn}
+                    onPress={() => alternarCompletado(tarea)}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="checkmark-circle" size={20} color="#7cff8b" />
+                  </TouchableOpacity>
+                  <Text style={styles.completedTaskText}>{tarea.titulo}</Text>
+                </View>
               ))
             )}
           </View>
@@ -162,24 +192,32 @@ export default function HomeScreen({ navigation }) {
           <Text style={styles.sectionTitle}>ACCESOS RÁPIDOS</Text>
 
           <View style={styles.quickRow}>
-            <TouchableOpacity style={styles.quickItem} onPress={abrirChat}>
-              <Text style={styles.quickIcon}>💬</Text>
+            <TouchableOpacity style={styles.quickItem} onPress={abrirChat} activeOpacity={0.7}>
+              <View style={styles.quickIconCircle}>
+                <Ionicons name="chatbubbles" size={22} color="#b75cff" />
+              </View>
               <Text style={styles.quickText}>Chat</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.quickItem}
               onPress={() => navigation.navigate('Recordatorios')}
+              activeOpacity={0.7}
             >
-              <Text style={styles.quickIcon}>✓</Text>
+              <View style={styles.quickIconCircle}>
+                <Ionicons name="notifications" size={22} color="#b75cff" />
+              </View>
               <Text style={styles.quickText}>Recordatorios</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.quickItem}
               onPress={() => navigation.navigate('Monitor IA')}
+              activeOpacity={0.7}
             >
-              <Text style={styles.quickIcon}>⚡</Text>
+              <View style={styles.quickIconCircle}>
+                <Ionicons name="hardware-chip" size={22} color="#b75cff" />
+              </View>
               <Text style={styles.quickText}>Monitor</Text>
             </TouchableOpacity>
           </View>
@@ -194,8 +232,8 @@ export default function HomeScreen({ navigation }) {
             onChangeText={setMensaje}
             onSubmitEditing={abrirChat}
           />
-          <TouchableOpacity onPress={abrirChat}>
-            <Text style={styles.microphone}>🎤</Text>
+          <TouchableOpacity onPress={abrirChat} style={styles.micButton} activeOpacity={0.7}>
+            <Ionicons name="mic" size={22} color="#d16cff" />
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -284,10 +322,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
 
-  menu: {
-    fontSize: 30,
-    color: '#b75cff',
-    width: 45,
+  headerSpacer: {
+    width: 46,
   },
 
   brand: {
@@ -509,16 +545,15 @@ const styles = StyleSheet.create({
   eventRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 11,
+    padding: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#241536',
   },
 
-  eventIcon: {
-    fontSize: 22,
-    color: '#7cff8b',
-    width: 45,
-    textAlign: 'center',
+  completeBtn: {
+    marginRight: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   eventInfo: {
@@ -528,17 +563,30 @@ const styles = StyleSheet.create({
   eventTime: {
     color: '#ddd5e1',
     fontSize: 14,
+    fontWeight: '500',
   },
 
   eventName: {
     color: '#f3edf5',
     fontSize: 15,
     marginTop: 2,
+    fontWeight: '600',
+  },
+
+  eventMeta: {
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+
+  eventMetaIcon: {
+    marginTop: 4,
   },
 
   today: {
     color: '#bd6cff',
-    fontSize: 14,
+    fontSize: 13,
+    fontWeight: '600',
   },
 
   taskList: {
@@ -548,10 +596,23 @@ const styles = StyleSheet.create({
     padding: 10,
   },
 
-  task: {
-    color: '#e7e0ea',
-    fontSize: 15,
-    paddingVertical: 8,
+  completedTaskRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 7,
+  },
+
+  completedCheckBtn: {
+    marginRight: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  completedTaskText: {
+    color: '#9b90a6',
+    fontSize: 14,
+    textDecorationLine: 'line-through',
+    flex: 1,
   },
 
   vacio: {
@@ -567,6 +628,7 @@ const styles = StyleSheet.create({
     borderColor: '#241536',
     borderRadius: 10,
     paddingVertical: 13,
+    paddingHorizontal: 6,
   },
 
   quickItem: {
@@ -574,15 +636,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
-  quickIcon: {
-    color: '#c268ff',
-    fontSize: 25,
-    marginBottom: 5,
+  quickIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(183, 92, 255, 0.12)',
+    borderWidth: 1,
+    borderColor: '#5b267c',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
   },
 
   quickText: {
     color: '#ded5e2',
-    fontSize: 13,
+    fontSize: 12,
+    fontWeight: '500',
   },
 
   bottomInputBox: {
@@ -604,9 +673,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
 
-  microphone: {
-    color: '#d16cff',
-    fontSize: 22,
-    paddingHorizontal: 8,
+  micButton: {
+    padding: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

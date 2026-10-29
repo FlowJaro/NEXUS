@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { Ionicons } from '@expo/vector-icons';
 
 import { RemindersContext } from '../context/RemindersContext';
 import { describirFecha } from '../services/assistant';
@@ -132,21 +133,37 @@ export default function RemindersScreen() {
             <TouchableOpacity
               style={[styles.tipoBtn, tipo === 'recordatorio' && styles.tipoBtnActivo]}
               onPress={() => setTipo('recordatorio')}
+              activeOpacity={0.8}
             >
-              <Text
-                style={[styles.tipoTexto, tipo === 'recordatorio' && styles.tipoTextoActivo]}
-              >
-                🔔 Recordatorio
-              </Text>
+              <View style={styles.tipoBtnContent}>
+                <Ionicons
+                  name="notifications"
+                  size={15}
+                  color={tipo === 'recordatorio' ? '#f0d9ff' : '#9b90a6'}
+                />
+                <Text
+                  style={[styles.tipoTexto, tipo === 'recordatorio' && styles.tipoTextoActivo]}
+                >
+                  Recordatorio
+                </Text>
+              </View>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={[styles.tipoBtn, tipo === 'alarma' && styles.tipoBtnActivo]}
               onPress={() => setTipo('alarma')}
+              activeOpacity={0.8}
             >
-              <Text style={[styles.tipoTexto, tipo === 'alarma' && styles.tipoTextoActivo]}>
-                ⏰ Alarma
-              </Text>
+              <View style={styles.tipoBtnContent}>
+                <Ionicons
+                  name="alarm"
+                  size={15}
+                  color={tipo === 'alarma' ? '#f0d9ff' : '#9b90a6'}
+                />
+                <Text style={[styles.tipoTexto, tipo === 'alarma' && styles.tipoTextoActivo]}>
+                  Alarma
+                </Text>
+              </View>
             </TouchableOpacity>
           </View>
 
@@ -231,13 +248,18 @@ export default function RemindersScreen() {
           ) : (
             recordatorios.map((item) => (
               <View key={item.id} style={styles.itemRow}>
+                {/* Botón interactivo para completar/desmarcar recordatorio */}
                 <TouchableOpacity
                   style={styles.itemCheck}
                   onPress={() => alternarCompletado(item)}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Text style={styles.itemCheckTexto}>
-                    {item.completado ? '✅' : item.tipo === 'alarma' ? '⏰' : '🔔'}
-                  </Text>
+                  <Ionicons
+                    name={item.completado ? 'checkmark-circle' : 'ellipse-outline'}
+                    size={24}
+                    color={item.completado ? '#7cff8b' : '#b75cff'}
+                  />
                 </TouchableOpacity>
 
                 <View style={styles.itemInfo}>
@@ -246,14 +268,27 @@ export default function RemindersScreen() {
                   >
                     {item.titulo}
                   </Text>
-                  <Text style={styles.itemFecha}>
-                    {item.tipo === 'alarma' ? 'Alarma' : 'Recordatorio'} ·{' '}
-                    {describirFecha(item.fecha)}
-                  </Text>
+                  <View style={styles.itemMeta}>
+                    <Ionicons
+                      name={item.tipo === 'alarma' ? 'alarm-outline' : 'notifications-outline'}
+                      size={13}
+                      color="#9b90a6"
+                      style={{ marginRight: 4 }}
+                    />
+                    <Text style={styles.itemFecha}>
+                      {item.tipo === 'alarma' ? 'Alarma' : 'Recordatorio'} ·{' '}
+                      {describirFecha(item.fecha)}
+                    </Text>
+                  </View>
                 </View>
 
-                <TouchableOpacity onPress={() => confirmarEliminar(item)}>
-                  <Text style={styles.itemEliminar}>🗑️</Text>
+                <TouchableOpacity
+                  onPress={() => confirmarEliminar(item)}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={styles.itemEliminarBtn}
+                >
+                  <Ionicons name="trash-outline" size={20} color="#ff6b81" />
                 </TouchableOpacity>
               </View>
             ))
@@ -344,6 +379,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#07040e',
   },
+  tipoBtnContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   tipoBtnActivo: {
     backgroundColor: '#260f38',
     borderColor: '#8d3ec2',
@@ -424,10 +464,10 @@ const styles = StyleSheet.create({
     borderBottomColor: '#241536',
   },
   itemCheck: {
-    width: 34,
-  },
-  itemCheckTexto: {
-    fontSize: 20,
+    width: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 6,
   },
   itemInfo: {
     flex: 1,
@@ -441,13 +481,19 @@ const styles = StyleSheet.create({
     textDecorationLine: 'line-through',
     color: '#8f879d',
   },
+  itemMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 3,
+  },
   itemFecha: {
     color: '#9b90a6',
     fontSize: 12,
-    marginTop: 3,
   },
-  itemEliminar: {
-    fontSize: 18,
-    paddingLeft: 12,
+  itemEliminarBtn: {
+    padding: 6,
+    marginLeft: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
