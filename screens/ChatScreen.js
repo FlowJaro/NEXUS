@@ -28,7 +28,13 @@ import {
   proveedoresListos,
   suscribirAjustes,
 } from '../services/ai/settings';
-import { escucharUnaOrden, detenerVoz, hablar, vozDisponible } from '../services/voice';
+import {
+  escucharUnaOrden,
+  iniciarEscuchaContinuaNexus,
+  detenerVoz,
+  hablar,
+  vozDisponible,
+} from '../services/voice';
 import AISettingsModal from '../components/AISettingsModal';
 
 const { width } = Dimensions.get('window');
@@ -61,7 +67,7 @@ const SUGERENCIAS = [
   'Cuentame un chiste',
 ];
 
-export default function ChatScreen() {
+export default function ChatScreen({ route }) {
   const { user } = useContext(AuthContext);
   const {
     recordatorios,
@@ -75,6 +81,7 @@ export default function ChatScreen() {
   const [prompt, setPrompt] = useState('');
   const [pensando, setPensando] = useState(false);
   const [reconociendo, setReconociendo] = useState(false);
+  const [escuchaActiva, setEscuchaActiva] = useState(false);
   const [vozActivada, setVozActivada] = useState(true);
   const [mensajes, setMensajes] = useState([mensajeBienvenida()]);
   const [hidratado, setHidratado] = useState(false);
@@ -87,6 +94,7 @@ export default function ChatScreen() {
   const [ultimoEnvio, setUltimoEnvio] = useState('');
 
   const sesionVoz = useRef(null);
+  const sesionEscuchaContinua = useRef(null);
   const scrollRef = useRef(null);
 
   const nombre = user?.nombrePreferido || user?.email?.split('@')[0] || 'Usuario';
@@ -170,6 +178,17 @@ export default function ChatScreen() {
     if (!hidratado) return;
     AsyncStorage.setItem(claveChat, JSON.stringify(mensajes.slice(-60))).catch(() => {});
   }, [mensajes, hidratado, claveChat]);
+
+  useEffect(() => {
+    if (!hidratado) return;
+    const textoInicial = route?.params?.textoInicial;
+    if (textoInicial) {
+      if (route.params) route.params.textoInicial = null;
+      setTimeout(() => {
+        enviarOrden(textoInicial);
+      }, 350);
+    }
+  }, [hidratado, route?.params?.textoInicial]);
 
   const agregarMensaje = useCallback((emisor, texto, acciones = [], meta = {}) => {
     setMensajes((prev) => [
@@ -311,6 +330,56 @@ export default function ChatScreen() {
     if (!sesion) setReconociendo(false);
   };
 
+  const alternarEscuchaActiva = async () => {
+    if (escuchaActiva) {
+      sesionEscuchaContinua.current?.detener?.();
+      sesionEscuchaContinua.current = null;
+      setEscuchaActiva(false);
+      return;
+    }
+
+    if (!vozDisponible()) {
+      Alert.alert(
+        'Voz no disponible',
+        'El reconocimiento de voz continuo requiere soporte nativo de micrófono.'
+      );
+      return;
+    }
+
+    setEscuchaActiva(true);
+    const sesion = await iniciarEscuchaContinuaNexus({
+      onPalabraClave: () => {
+        hablar('Dime, te escucho.');
+        setEstadoIA('¡Palabra NEXUS detectada! Escuchando...');
+      },
+      onComando: (orden) => {
+        setEstadoIA(`Ejecutando: "${orden}"`);
+        enviarOrden(orden);
+      },
+      onError: (codigo) => {
+        if (codigo === 'PERMISO_DENEGADO') {
+          Alert.alert(
+            'Permiso denegado',
+            'Se necesita permiso de micrófono para la escucha activa.'
+          );
+          setEscuchaActiva(false);
+        }
+      },
+      onEstado: (st) => {
+        if (st === 'detenido') setEscuchaActiva(false);
+      },
+    });
+
+    sesionEscuchaContinua.current = sesion;
+    if (!sesion) setEscuchaActiva(false);
+  };
+
+  useEffect(() => {
+    return () => {
+      sesionEscuchaContinua.current?.detener?.();
+    };
+  }, []);
+
   const limpiarChat = () => {
     Alert.alert('Borrar conversacion', '¿Quieres borrar todo el historial del chat?', [
       { text: 'Cancelar', style: 'cancel' },
@@ -345,6 +414,7 @@ export default function ChatScreen() {
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         <View style={styles.header}>
           <View style={styles.headerRow}>
@@ -386,6 +456,48 @@ export default function ChatScreen() {
           <Text style={styles.headerSubtitle}>ASISTENTE PERSONAL CON ACCIONES REALES</Text>
         </View>
 
+        {/* BARRA DE COMANDO POR VOZ CONTINUO 'NEXUS' */}
+        <TouchableOpacity
+          style={[
+            styles.manosLibresBar,
+            escuchaActiva && styles.manosLibresBarActiva,
+          ]}
+          onPress={alternarEscuchaActiva}
+          activeOpacity={0.8}
+        >
+          <View style={styles.manosLibresLeft}>
+            <View
+              style={[
+                styles.manosLibresDot,
+                escuchaActiva ? styles.manosLibresDotActiva : styles.manosLibresDotInactiva,
+              ]}
+            />
+            <Ionicons
+              name={escuchaActiva ? 'mic' : 'mic-outline'}
+              size={16}
+              color={escuchaActiva ? '#00ffcc' : '#b75cff'}
+            />
+            <Text
+              style={[
+                styles.manosLibresTexto,
+                escuchaActiva && styles.manosLibresTextoActivo,
+              ]}
+            >
+              {escuchaActiva
+                ? 'Escucha activa: Di "NEXUS" para hablar...'
+                : 'Activar respuesta por voz: Di "NEXUS"'}
+            </Text>
+          </View>
+          <Text
+            style={[
+              styles.manosLibresTag,
+              escuchaActiva && styles.manosLibresTagActivo,
+            ]}
+          >
+            {escuchaActiva ? 'ON' : 'OFF'}
+          </Text>
+        </TouchableOpacity>
+
         {aviso && (
           <View style={styles.aviso}>
             <Ionicons name="cloud-offline-outline" size={14} color="#ffb86b" />
@@ -409,6 +521,7 @@ export default function ChatScreen() {
           style={styles.chatList}
           contentContainerStyle={styles.chatContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
         >
           {mensajes.map((m) => (
@@ -500,6 +613,11 @@ export default function ChatScreen() {
             placeholderTextColor="#8f879d"
             value={prompt}
             onChangeText={setPrompt}
+            onFocus={() => {
+              setTimeout(() => {
+                scrollRef.current?.scrollToEnd({ animated: true });
+              }, 150);
+            }}
             onSubmitEditing={() => enviarOrden()}
             returnKeyType="send"
             multiline={false}
@@ -957,5 +1075,67 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 13,
     fontWeight: 'bold',
+  },
+  manosLibresBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#0c0717',
+    borderBottomWidth: 1,
+    borderBottomColor: '#2b193d',
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+  },
+  manosLibresBarActiva: {
+    backgroundColor: '#0d1924',
+    borderBottomColor: 'rgba(0, 255, 204, 0.3)',
+  },
+  manosLibresLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 8,
+  },
+  manosLibresDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  manosLibresDotInactiva: {
+    backgroundColor: '#6b587b',
+  },
+  manosLibresDotActiva: {
+    backgroundColor: '#00ffcc',
+    shadowColor: '#00ffcc',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  manosLibresTexto: {
+    color: '#a397b2',
+    fontSize: 12,
+    fontWeight: '500',
+    flex: 1,
+  },
+  manosLibresTextoActivo: {
+    color: '#00ffcc',
+    fontWeight: '600',
+  },
+  manosLibresTag: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#a397b2',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    backgroundColor: '#1b1228',
+    borderWidth: 1,
+    borderColor: '#3c1854',
+  },
+  manosLibresTagActivo: {
+    color: '#00ffcc',
+    backgroundColor: 'rgba(0, 255, 204, 0.12)',
+    borderColor: 'rgba(0, 255, 204, 0.4)',
   },
 });

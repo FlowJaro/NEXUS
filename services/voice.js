@@ -160,3 +160,144 @@ export async function escucharUnaOrden({
     },
   };
 }
+
+/**
+ * Escucha activa continua dentro de la app para responder cada vez que el usuario diga "NEXUS".
+ * Si dice "Nexus, qué hora es", ejecuta la orden de inmediato.
+ * Si solo dice "Nexus", responde "Dime, te escucho" y queda a la espera de la instrucción.
+ */
+export async function iniciarEscuchaContinuaNexus({
+  lang = 'es-ES',
+  onPalabraClave,
+  onComando,
+  onError,
+  onEstado,
+} = {}) {
+  const mod = cargarModuloVoz();
+
+  if (!mod) {
+    if (onError) onError('VOZ_NO_DISPONIBLE');
+    return null;
+  }
+
+  const { ExpoSpeechRecognitionModule } = mod;
+
+  const addSpeechRecognitionListener = (nombre, manejador) => {
+    if (
+      ExpoSpeechRecognitionModule &&
+      typeof ExpoSpeechRecognitionModule.addListener === 'function'
+    ) {
+      return ExpoSpeechRecognitionModule.addListener(nombre, manejador);
+    }
+    return { remove() {} };
+  };
+
+  const permiso = await pedirPermisoMicrofono();
+  if (!permiso) {
+    if (onError) onError('PERMISO_DENEGADO');
+    return null;
+  }
+
+  let activo = true;
+  let suscripciones = [];
+  let ultimoProcesado = '';
+  let tiempoReinicio = null;
+
+  const limpiar = () => {
+    suscripciones.forEach((s) => {
+      try {
+        s.remove();
+      } catch (_) {}
+    });
+    suscripciones = [];
+  };
+
+  const arrancar = () => {
+    if (!activo) return;
+    limpiar();
+
+    suscripciones.push(
+      addSpeechRecognitionListener('start', () => {
+        if (onEstado) onEstado('escuchando');
+      })
+    );
+
+    suscripciones.push(
+      addSpeechRecognitionListener('result', (event) => {
+        if (!activo) return;
+        const texto = event?.results?.[0]?.transcript ?? '';
+        if (!texto) return;
+
+        // Comprueba si contiene la palabra clave 'Nexus'
+        const regex = /(?:oye\s+nexus|hola\s+nexus|ok\s+nexus|nexus)[,\s:]*(.*)/i;
+        const coincidencia = texto.match(regex);
+
+        if (coincidencia) {
+          const comando = coincidencia[1]?.trim() || '';
+
+          if (event?.isFinal) {
+            if (texto !== ultimoProcesado) {
+              ultimoProcesado = texto;
+              if (comando.length > 1) {
+                if (onComando) onComando(comando);
+              } else {
+                if (onPalabraClave) onPalabraClave();
+              }
+            }
+          }
+        }
+      })
+    );
+
+    suscripciones.push(
+      addSpeechRecognitionListener('error', (event) => {
+        if (!activo) return;
+        // Si hay error temporal de silencio, intentamos reconectar tras un breve lapso
+        if (event?.error !== 'speech-recognizer-busy') {
+          tiempoReinicio = setTimeout(() => {
+            if (activo) arrancar();
+          }, 800);
+        }
+      })
+    );
+
+    suscripciones.push(
+      addSpeechRecognitionListener('end', () => {
+        if (activo) {
+          tiempoReinicio = setTimeout(() => {
+            if (activo) arrancar();
+          }, 400);
+        }
+      })
+    );
+
+    try {
+      ExpoSpeechRecognitionModule.start({
+        lang,
+        interimResults: true,
+        continuous: true,
+        contextualStrings: ['Nexus', 'nexus', 'Oye Nexus'],
+      });
+    } catch (error) {
+      if (activo) {
+        tiempoReinicio = setTimeout(() => {
+          if (activo) arrancar();
+        }, 1200);
+      }
+    }
+  };
+
+  arrancar();
+
+  return {
+    detener: () => {
+      activo = false;
+      if (tiempoReinicio) clearTimeout(tiempoReinicio);
+      limpiar();
+      try {
+        ExpoSpeechRecognitionModule.stop();
+      } catch (_) {}
+      if (onEstado) onEstado('detenido');
+    },
+  };
+}

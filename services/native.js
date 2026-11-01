@@ -27,7 +27,13 @@ function cargar(clave, disponible, importar) {
 }
 
 export function modContacts() {
-  return cargar('expo-contacts', Platform.OS !== 'web', () => require('expo-contacts'));
+  return cargar('expo-contacts', Platform.OS !== 'web', () => {
+    try {
+      return require('expo-contacts/legacy');
+    } catch (e) {
+      return require('expo-contacts');
+    }
+  });
 }
 
 export function modMediaLibrary() {

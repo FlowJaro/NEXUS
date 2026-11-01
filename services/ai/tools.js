@@ -327,11 +327,15 @@ export const HERRAMIENTAS = {
   },
 
   abrir_mapa: {
-    descripcion: 'Abre la ruta hacia un lugar en la app de mapas.',
-    args: '{ "destino": "Plaza Mayor, Madrid", "modo": "coche" }',
+    descripcion:
+      'Abre Google Maps con la ubicación indicada por el usuario, o traza una ruta si se especifica un modo de transporte.',
+    args: '{ "destino": "Torre Eiffel, Paris" }  o  { "destino": "Plaza Mayor, Madrid", "modo": "coche" }',
     sensible: false,
     async ejecutar(args) {
-      return device.abrirMapa({ destino: args.destino, modo: args.modo });
+      return device.abrirMapa({
+        destino: args.destino || args.ubicacion || args.lugar,
+        modo: args.modo,
+      });
     },
   },
 

@@ -12,9 +12,10 @@ import { claveDeProveedor } from './settings';
 
 const TIEMPO_POR_DEFECTO_MS = 30000;
 const TIEMPOS = {
+  gemini: 25000,
+  puter: 25000,
   llm7: 20000,
   pollinations: 35000,
-  gemini: 25000,
   groq: 20000,
   openrouter: 25000,
 };
@@ -113,7 +114,7 @@ function segundosDeEspera(error, respuesta) {
 function cabecerasExtra(id, clave) {
   const base = { 'Content-Type': 'application/json', Accept: 'application/json' };
 
-  if (!clave) return base;
+  if (!clave || (id === 'puter' && clave === 'puter-free')) return base;
 
   const cabeceras = { ...base, Authorization: `Bearer ${clave}` };
 

@@ -39,6 +39,7 @@
     },
     "android": {
       "package": "com.nexus.app",
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#05030b"

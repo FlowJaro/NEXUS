@@ -43,7 +43,15 @@ export default function HomeScreen({ navigation }) {
     return unsubscribe;
   }, [user]);
 
-  const abrirChat = () => navigation.navigate('Chat IA');
+  const abrirChat = (textoInicial) => {
+    const texto = typeof textoInicial === 'string' ? textoInicial : mensaje;
+    if (texto && texto.trim()) {
+      setMensaje('');
+      navigation.navigate('Chat IA', { textoInicial: texto.trim() });
+    } else {
+      navigation.navigate('Chat IA');
+    }
+  };
 
   const nombre =
     perfil?.nombrePreferido ||

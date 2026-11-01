@@ -31,7 +31,7 @@ import {
   guardarAjustes,
 } from '../services/ai/settings';
 
-const ORDEN = ['auto', 'llm7', 'pollinations', 'gemini', 'groq', 'openrouter', 'local'];
+const ORDEN = ['auto', 'gemini', 'puter', 'llm7', 'pollinations', 'groq', 'openrouter', 'local'];
 
 const TEMPERATURAS = [
   { valor: 0.2, etiqueta: 'Precisa' },

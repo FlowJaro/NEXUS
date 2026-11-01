@@ -69,30 +69,66 @@ export async function buscarContactos(nombre, limite = 5) {
     throw new Error('Los contactos solo estan disponibles en el celular.');
   }
 
-  const permiso = await Contacts.requestPermissionsAsync();
-  if (permiso.status !== 'granted') {
-    throw new Error('Necesito permiso para leer tus contactos.');
+  try {
+    const permiso =
+      (await Contacts.requestPermissionsAsync?.()) ||
+      (await Contacts.getPermissionsAsync?.());
+    if (permiso && permiso.status !== 'granted') {
+      throw new Error('Necesito permiso para leer tus contactos.');
+    }
+  } catch (err) {
+    if (err.message && err.message.includes('permiso')) throw err;
   }
 
-  const campos = [Contacts.ContactField.FULL_NAME, Contacts.ContactField.PHONES];
-  const lista = await Contacts.Contact.getAllDetails(campos, { limit: 800 });
+  let lista = [];
+  try {
+    if (typeof Contacts.getContactsAsync === 'function') {
+      const respuesta = await Contacts.getContactsAsync({
+        fields: [
+          Contacts.Fields?.PhoneNumbers || 'phoneNumbers',
+          Contacts.Fields?.Name || 'name',
+          Contacts.Fields?.FirstName || 'firstName',
+          Contacts.Fields?.LastName || 'lastName',
+        ],
+        pageSize: 1000,
+      });
+      lista = respuesta?.data || [];
+    } else if (Contacts.Contact && typeof Contacts.Contact.getAll === 'function') {
+      lista = await Contacts.Contact.getAll();
+    }
+  } catch (error) {
+    console.warn('NEXUS: error al leer contactos:', error?.message);
+  }
+
   const buscado = normalizarTexto(nombre);
 
+  const contactosLimpios = (lista || []).map((contacto) => {
+    const completo =
+      contacto.name ||
+      contacto.fullName ||
+      [contacto.firstName, contacto.lastName].filter(Boolean).join(' ') ||
+      '';
+    const phones = contacto.phoneNumbers || contacto.phones || [];
+    const primerNumero = phones[0]?.number || phones[0]?.value || phones[0] || '';
+    const numero = normalizarTelefono(primerNumero);
+    return {
+      fullName: completo || 'Sin nombre',
+      numero,
+    };
+  }).filter((c) => Boolean(c.numero));
+
   if (!buscado) {
-    return lista
-      .slice(0, limite)
-      .map((contacto) => ({
-        nombre: contacto.fullName || 'Sin nombre',
-        numero: normalizarTelefono(contacto.phones?.[0]?.number),
-      }))
-      .filter((contacto) => contacto.numero);
+    return contactosLimpios.slice(0, limite).map((c) => ({
+      nombre: c.fullName,
+      numero: c.numero,
+    }));
   }
 
   const puntuados = [];
 
-  lista.forEach((contacto) => {
+  contactosLimpios.forEach((contacto) => {
     const completo = normalizarTexto(contacto.fullName);
-    const numero = normalizarTelefono(contacto.phones?.[0]?.number);
+    const numero = contacto.numero;
     if (!completo || !numero) return;
 
     let puntaje = 0;
@@ -107,7 +143,7 @@ export async function buscarContactos(nombre, limite = 5) {
     }
 
     if (puntaje > 0) {
-      puntuados.push({ puntaje, nombre: contacto.fullName || 'Sin nombre', numero });
+      puntuados.push({ puntaje, nombre: contacto.fullName, numero });
     }
   });
 
@@ -263,7 +299,7 @@ export async function buscarWeb({ consulta }) {
 
 export async function abrirMapa({ destino, modo }) {
   const lugar = String(destino || '').trim();
-  if (!lugar) throw new Error('Dime a donde quieres ir.');
+  if (!lugar) throw new Error('Dime qué ubicación o lugar quieres ver en Google Maps.');
 
   const viaje = normalizarTexto(modo);
   let url;
@@ -276,15 +312,37 @@ export async function abrirMapa({ destino, modo }) {
     url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
       lugar
     )}&travelmode=transit`;
-  } else {
+  } else if (viaje === 'coche' || viaje === 'auto' || viaje === 'carro' || viaje === 'driving' || viaje === 'ruta') {
     url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
       lugar
     )}&travelmode=driving`;
+  } else {
+    // Si no se especifica un modo de transporte, abre la búsqueda de la ubicación directamente
+    url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lugar)}`;
   }
 
-  if (!(await abrir(url))) throw new Error('No pude abrir el mapa.');
+  let abierto = false;
 
-  return { ok: true, mensaje: `Abri la ruta hacia ${lugar}.` };
+  // En Android se puede abrir directamente la aplicación de Google Maps con intent geo:
+  if (Platform.OS === 'android') {
+    try {
+      const geoUrl = `geo:0,0?q=${encodeURIComponent(lugar)}`;
+      if (await Linking.canOpenURL(geoUrl)) {
+        await Linking.openURL(geoUrl);
+        abierto = true;
+      }
+    } catch (_) {
+      // Si falla intent, recurrimos a URL universal de Google Maps
+    }
+  }
+
+  if (!abierto) {
+    abierto = await abrir(url);
+  }
+
+  if (!abierto) throw new Error(`No pude abrir Google Maps para "${lugar}".`);
+
+  return { ok: true, mensaje: `Abriendo Google Maps con la ubicación de "${lugar}".` };
 }
 
 // ---------------------------------------------------------------------------

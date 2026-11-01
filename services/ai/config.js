@@ -31,18 +31,36 @@ export const PROVEEDORES = {
     id: 'gemini',
     nombre: 'Google Gemini',
     descripcion:
-      'La mejor calidad del grupo. Se activa solo cuando NEXUS consigue una clave automaticamente.',
+      'La mejor calidad e inteligencia. Funciona con la clave integrada de Gemini.',
     requiereClave: true,
     url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
     modelos: [
-      'gemini-3.5-flash-lite',
-      'gemini-3-flash-lite',
-      'gemini-2.5-flash-lite',
+      'gemini-3.8-flash',
       'gemini-2.5-flash',
       'gemini-2.0-flash',
+      'gemini-1.5-flash',
+      'gemini-2.5-flash-lite',
     ],
-    modeloPorDefecto: 'gemini-3.5-flash-lite',
+    modeloPorDefecto: 'gemini-3.8-flash',
     enlaceClave: 'https://aistudio.google.com/apikey',
+  },
+
+  puter: {
+    id: 'puter',
+    nombre: 'OpenAI (vía Puter)',
+    descripcion:
+      'Acceso gratuito e ilimitado a modelos OpenAI (GPT-4o, GPT-4o-mini) mediante la API de Puter.',
+    requiereClave: false,
+    claveFija: 'puter-free',
+    url: 'https://api.puter.com/puterai/openai/v1/chat/completions',
+    modelos: [
+      'gpt-4o-mini',
+      'gpt-4o',
+      'gpt-4.1-mini',
+      'gpt-3.5-turbo',
+    ],
+    modeloPorDefecto: 'gpt-4o-mini',
+    enlaceClave: 'https://developer.puter.com/tutorials/free-unlimited-ai-api/',
   },
 
   groq: {
@@ -113,14 +131,14 @@ export const PROVEEDORES = {
 };
 
 // Orden de intentos cuando el usuario elige "Automatico".
-// Primero los que dan mejor calidad (si hay clave), despues los que nunca
-// fallan por falta de clave.
-export const ORDEN_AUTO = ['gemini', 'groq', 'openrouter', 'llm7', 'pollinations'];
+// Primero los que dan mejor calidad (Gemini con clave, Puter con OpenAI),
+// despues los que nunca fallan por falta de clave.
+export const ORDEN_AUTO = ['gemini', 'puter', 'llm7', 'pollinations', 'groq', 'openrouter'];
 
 export const PROVEEDORES_CON_IA = ORDEN_AUTO.slice();
 
 // Proveedores que funcionan sin que nadie configure nada.
-export const PROVEEDORES_SIN_CLAVE = ['llm7', 'pollinations'];
+export const PROVEEDORES_SIN_CLAVE = ['puter', 'llm7', 'pollinations'];
 
 export const MAX_ACCIONES = 4;
 export const MAX_HISTORIAL = 12;

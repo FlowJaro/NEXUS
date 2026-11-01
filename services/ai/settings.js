@@ -137,6 +137,7 @@ const CLAVES_ENTORNO = {
   gemini: process.env.EXPO_PUBLIC_GEMINI_API_KEY,
   groq: process.env.EXPO_PUBLIC_GROQ_API_KEY,
   openrouter: process.env.EXPO_PUBLIC_OPENROUTER_API_KEY,
+  puter: process.env.EXPO_PUBLIC_PUTER_API_KEY || 'puter-free',
 };
 
 // Orden de busqueda de una clave: ajustes locales -> clave fija del proveedor
