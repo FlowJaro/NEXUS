@@ -39,3 +39,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# claves locales de IA (nunca subir)
+.env
+.env.local

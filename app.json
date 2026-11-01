@@ -12,6 +12,26 @@
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Permite que NEXUS use el microfono para escuchar tus ordenes.",
         "NSSpeechRecognitionUsageDescription": "Permite que NEXUS use el reconocimiento de voz para entender tus recordatorios y alarmas.",
+        "NSContactsUsageDescription": "Permite que NEXUS busque contactos para llamarlos o enviarles mensajes cuando se lo pidas.",
+        "NSPhotoLibraryUsageDescription": "Permite que NEXUS acceda a tu musica y fotos para reproducir canciones y compartir imagenes.",
+        "NSPhotoLibraryAddUsageDescription": "Permite que NEXUS guarde las fotos que tomes desde el asistente.",
+        "NSCameraUsageDescription": "Permite que NEXUS use la camara cuando le pidas tomar una foto.",
+        "NSLocationWhenInUseUsageDescription": "Permite que NEXUS consulte el clima de tu ubicacion actual.",
+        "LSApplicationQueriesSchemes": [
+          "whatsapp",
+          "instagram",
+          "fb",
+          "youtube",
+          "snssdk1128",
+          "spotify",
+          "tg",
+          "googlegmail",
+          "music",
+          "maps",
+          "mailto",
+          "tel",
+          "sms"
+        ],
         "UIBackgroundModes": [
           "audio"
         ]
@@ -31,7 +51,12 @@
         "android.permission.VIBRATE",
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.FOREGROUND_SERVICE",
-        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.READ_CONTACTS",
+        "android.permission.READ_MEDIA_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
       ]
     },
     "web": {
@@ -64,6 +89,36 @@
           ]
         }
       ],
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "Permite que NEXUS busque contactos para llamarlos o enviarles mensajes cuando se lo pidas."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Permite que NEXUS acceda a tu musica para reproducir canciones.",
+          "savePhotosPermission": "Permite que NEXUS guarde las fotos que tomes desde el asistente.",
+          "granularPermissions": [
+            "audio"
+          ]
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Permite que NEXUS acceda a tus fotos.",
+          "cameraPermission": "Permite que NEXUS use la camara cuando le pidas tomar una foto."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Permite que NEXUS consulte el clima de tu ubicacion actual."
+        }
+      ],
+      "expo-brightness",
       "@react-native-community/datetimepicker",
       "expo-asset",
       [
